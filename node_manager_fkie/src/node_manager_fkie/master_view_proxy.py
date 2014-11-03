@@ -49,7 +49,7 @@ from urlparse import urlparse
 import rospy
 import roslib
 from rosgraph.names import is_legal_name
-
+from rosservice import get_service_list, get_service_type
 
 import node_manager_fkie as nm
 from html_delegate import HTMLDelegate
@@ -147,7 +147,7 @@ class MasterViewProxy(QtGui.QWidget):
 #    self.__uses_confgs = dict() # stores the decisions of the user for used configuration to start of node
     '''@ivar: stored the question dialogs for changed files '''
     self._stop_ignores = ['rosout', rospy.get_name(), 'node_manager', 'master_discovery', 'master_sync', 'default_cfg', 'zeroconf']
-    ''' @todo: detect the names of master_discovery and master_sync ndoes'''
+    self._stop_ignores_services = {"multimaster_msgs_fkie/ListNodes", "multimaster_msgs_fkie/DiscoverMasters", "multimaster_msgs_fkie/GetSyncInfo"}
 
     self.__echo_topics_dialogs = dict() # [topic name] = EchoDialog
     '''@ivar: stores the open EchoDialogs '''
@@ -2692,6 +2692,12 @@ class MasterViewProxy(QtGui.QWidget):
     self.masterTab.nodeTreeView.selectionModel().select(selection, QtGui.QItemSelectionModel.ClearAndSelect)
 
   def _is_in_ignore_list(self, name):
+    # find default_cfg, master_discovery, zeroconf, and master_sync nodes 
+    # by the types of services they provide and ignore them when stopping nodes
+    services = get_service_list(name)
+    types = set([get_service_type(service) for service in services])
+    if types & self._stop_ignores_services:    
+            return True
     for i in self._stop_ignores:
       if name.endswith(i):
         return True
