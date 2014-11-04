@@ -49,7 +49,6 @@ from urlparse import urlparse
 import rospy
 import roslib
 from rosgraph.names import is_legal_name
-from rosservice import get_service_list, get_service_type
 
 import node_manager_fkie as nm
 from html_delegate import HTMLDelegate
@@ -1260,10 +1259,10 @@ class MasterViewProxy(QtGui.QWidget):
       text = '<div>%s</div>'%text
       name = node.name
     elif len(selectedNodes) > 1:
-#      stoppable_nodes = [sn for sn in selectedNodes if not sn.node_info.uri is None and not self._is_in_ignore_list(sn.name)]
-      restartable_nodes = [sn for sn in selectedNodes if len(sn.cfgs) > 0 and not self._is_in_ignore_list(sn.name)]
-      killable_nodes = [sn for sn in selectedNodes if not sn.node_info.pid is None and not self._is_in_ignore_list(sn.name)]
-      unregisterble_nodes = [sn for sn in selectedNodes if sn.node_info.pid is None and not sn.node_info.uri is None and sn.node_info.isLocal and not self._is_in_ignore_list(sn.name)]
+#      stoppable_nodes = [sn for sn in selectedNodes if not sn.node_info.uri is None and not self._is_in_ignore_list(sn)]
+      restartable_nodes = [sn for sn in selectedNodes if len(sn.cfgs) > 0 and not self._is_in_ignore_list(sn)]
+      killable_nodes = [sn for sn in selectedNodes if not sn.node_info.pid is None and not self._is_in_ignore_list(sn)]
+      unregisterble_nodes = [sn for sn in selectedNodes if sn.node_info.pid is None and not sn.node_info.uri is None and sn.node_info.isLocal and not self._is_in_ignore_list(sn)]
       # add description for multiple selected nodes
       if restartable_nodes or killable_nodes or unregisterble_nodes:
         text += '<b>Selected nodes:</b><br>'
@@ -1692,7 +1691,7 @@ class MasterViewProxy(QtGui.QWidget):
         self.setCursor(cursor)
 
   def stop_node(self, node, force=False):
-    if not node is None and not node.uri is None and (not self._is_in_ignore_list(node.name) or force):
+    if not node is None and not node.uri is None and (not self._is_in_ignore_list(node) or force):
       try:
         rospy.loginfo("Stop node '%s'[%s]", str(node.name), str(node.uri))
         #'print "STOP set timeout", node
@@ -1748,7 +1747,7 @@ class MasterViewProxy(QtGui.QWidget):
     self.stop_nodes(result)
 
   def kill_node(self, node, force=False):
-    if not node is None and not node.uri is None and (not self._is_in_ignore_list(node.name) or force):
+    if not node is None and not node.uri is None and (not self._is_in_ignore_list(node) or force):
       pid = node.pid
       if pid is None:
         # try to get the process id of the node
@@ -1789,7 +1788,7 @@ class MasterViewProxy(QtGui.QWidget):
     self._progress_queue.start()
 
   def unregister_node(self, node, force=False):
-    if not node is None and not node.uri is None and (not self._is_in_ignore_list(node.name) or force):
+    if not node is None and not node.uri is None and (not self._is_in_ignore_list(node) or force):
       # stop the node?
 #        try:
 #          p = xmlrpclib.ServerProxy(node.uri)
@@ -2685,22 +2684,23 @@ class MasterViewProxy(QtGui.QWidget):
     while root.child(i, 0).isValid():
       index = root.child(i, 0)
       item = self.node_tree_model.itemFromIndex(index)
-      if not item is None and not self._is_in_ignore_list(item.name):
+      if not item is None and not self._is_in_ignore_list(item):
         selection.append(QtGui.QItemSelectionRange(index, root.child(i, last_row_index)))
       i = i + 1
 #    selection = QtGui.QItemSelection(firstChild, lastChild)
     self.masterTab.nodeTreeView.selectionModel().select(selection, QtGui.QItemSelectionModel.ClearAndSelect)
 
-  def _is_in_ignore_list(self, name):
+  def _is_in_ignore_list(self, node):
     # find default_cfg, master_discovery, zeroconf, and master_sync nodes 
     # by the types of services they provide and ignore them when stopping nodes
-    services = get_service_list(name)
-    types = set([get_service_type(service) for service in services])
-    if types & self._stop_ignores_services:    
-            return True
-    for i in self._stop_ignores:
-      if name.endswith(i):
+    types = set([self.master_info.services[service].type for service in node.services])
+    if types & self._stop_ignores_services:
         return True
+    
+    for i in self._stop_ignores:
+      if node.name.endswith(i):
+        return True
+    
     return False
 
   def on_shortcut1_activated(self):
