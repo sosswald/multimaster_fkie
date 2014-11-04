@@ -2693,7 +2693,10 @@ class MasterViewProxy(QtGui.QWidget):
   def _is_in_ignore_list(self, node):
     # find default_cfg, master_discovery, zeroconf, and master_sync nodes 
     # by the types of services they provide and ignore them when stopping nodes
-    types = set([self.master_info.services[service].type for service in node.services])
+    types = set()
+    for service in node.services:
+        if service in self.master_info.services:
+            types.add(self.master_info.services[service])
     if types & self._stop_ignores_services:
         return True
     
