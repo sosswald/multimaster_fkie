@@ -159,6 +159,7 @@ class MasterViewProxy(QtGui.QWidget):
     self.__robot_icons = []
     self.__current_robot_icon = None
     self.__current_parameter_robot_icon = ''
+    self.__republish_params = {} # { topic : params, created by dialog}
     # store the running_nodes to update to duplicates after load a launch file
     self.__running_nodes = dict() # dict (node name : masteruri)
     self.default_cfg_handler = DefaultConfigHandler()
@@ -686,8 +687,11 @@ class MasterViewProxy(QtGui.QWidget):
   def _apply_launch_config(self, launchfile, launchConfig):
 #    QtCore.QCoreApplication.processEvents(QtCore.QEventLoop.ExcludeUserInputEvents)
     stored_roscfg = None
+    expanded_items = None
     if self.__configs.has_key(launchfile):
-      # close the current loaded configuration with the same name 
+      # store expanded items
+      expanded_items = self._get_expanded_groups()
+      # close the current loaded configuration with the same name
       self.removeConfigFromModel(launchfile)
       stored_roscfg = self.__configs[launchfile].Roscfg
       del self.__configs[launchfile]
@@ -755,6 +759,9 @@ class MasterViewProxy(QtGui.QWidget):
         self.__robot_icons.remove(launchfile)
       self.__robot_icons.insert(0, launchfile)
       self.markNodesAsDuplicateOf(self.__running_nodes)
+      # expand items to restore old view
+      if not expanded_items is None:
+        self._expand_groups(expanded_items)
 #      print "MASTER:", launchConfig.Roscfg.master
 #      print "NODES_CORE:", launchConfig.Roscfg.nodes_core
 #      for n in launchConfig.Roscfg.nodes:
@@ -792,6 +799,48 @@ class MasterViewProxy(QtGui.QWidget):
       self.on_node_selection_changed(None, None, True)
     except:
       pass
+
+  def _get_expanded_groups(self):
+    '''
+    Returns a list of group names, which are expanded.
+    '''
+    result = []
+    try:
+      for r in range(self.masterTab.nodeTreeView.model().rowCount()):
+        index_host = self.masterTab.nodeTreeView.model().index(r, 0)
+        if index_host.isValid() and self.masterTab.nodeTreeView.isExpanded(index_host):
+          if self.masterTab.nodeTreeView.model().hasChildren(index_host):
+            for c in range(self.masterTab.nodeTreeView.model().rowCount(index_host)):
+              index_cap = self.masterTab.nodeTreeView.model().index(c, 0, index_host)
+              if index_cap.isValid() and self.masterTab.nodeTreeView.isExpanded(index_cap):
+                item = self.node_tree_model.itemFromIndex(index_cap)
+                if isinstance(item, (GroupItem, HostItem)):
+                  result.append(item.name)
+    except:
+      import traceback
+      print traceback.format_exc()
+    return result
+
+  def _expand_groups(self, groups=None):
+    '''
+    Expands all groups, which are in the given list. If no list is given, 
+    expands all groups of expanded hosts.
+    '''
+    try:
+      for r in range(self.masterTab.nodeTreeView.model().rowCount()):
+        index_host = self.masterTab.nodeTreeView.model().index(r, 0)
+        if index_host.isValid() and self.masterTab.nodeTreeView.isExpanded(index_host):
+          if self.masterTab.nodeTreeView.model().hasChildren(index_host):
+            for c in range(self.masterTab.nodeTreeView.model().rowCount(index_host)):
+              index_cap = self.masterTab.nodeTreeView.model().index(c, 0, index_host)
+              if index_cap.isValid():
+                item = self.node_tree_model.itemFromIndex(index_cap)
+                if isinstance(item, (GroupItem, HostItem)):
+                  if groups is None or item.name in groups:
+                    self.masterTab.nodeTreeView.setExpanded(index_cap, True)
+    except:
+      import traceback
+      print traceback.format_exc()
 
   def update_robot_icon(self, force=False):
     '''
@@ -1308,8 +1357,19 @@ class MasterViewProxy(QtGui.QWidget):
       topic = selectedTopics[0]
       ns, sep, name = topic.name.rpartition(rospy.names.SEP)
       text = '<font size="+1"><b><span style="color:gray;">%s%s</span><b>%s</b></font><br>'%(ns, sep, name)
-      text += '<a href="topicecho://%s%s">echo</a> - '%(self.mastername, topic.name)
-      text += '<a href="topichz://%s%s">hz</a>'%(self.mastername, topic.name)
+      text += '<a href="topicecho://%s%s">echo</a>'%(self.mastername, topic.name)
+      text += '- <a href="topichz://%s%s">hz</a>'%(self.mastername, topic.name)
+      text += '- <a href="topicpub://%s%s">pub</a>'%(self.mastername, topic.name)
+      if topic.name in self.__republish_params:
+        text += '- <a href="topicrepub://%s%s">repub</a>'%(self.mastername, topic.name)
+      topic_publisher = []
+      topic_prefix = '/rostopic_pub%s_'%topic.name
+      node_names = self.master_info.node_names
+      for n in node_names:
+        if n.startswith(topic_prefix):
+          topic_publisher.append(n)
+      if topic_publisher:
+        text += '- <a href="topicstop://%s%s">stop [%d]</a>'%(self.mastername, topic.name, len(topic_publisher))
       text += '<p>'
       text += self._create_html_list('Publisher:', topic.publisherNodes, 'NODE')
       text += self._create_html_list('Subscriber:', topic.subscriberNodes, 'NODE')
@@ -1333,6 +1393,15 @@ class MasterViewProxy(QtGui.QWidget):
 #                pass
             text += '%s: <span style="color:gray;">%s</span><br>'%(f, idtype)
           text += '<br>'
+          constants = {}
+          for m in dir(mclass):
+            if not m.startswith('_'):
+              if type(getattr(mclass, m)) in [str, int, bool, float]:
+                constants[m] = getattr(mclass, m)
+          if constants:
+            text += '<b><u>Constants:</u></b><br>'
+            for n in sorted(constants.iterkeys()):
+              text += '%s: <span style="color:gray;">%s</span><br>'%(n, constants[n])
       except ValueError:
         pass
       text += '</dl>'
@@ -2229,7 +2298,18 @@ class MasterViewProxy(QtGui.QWidget):
                             'Error while add a parameter to the ROS parameter server',
                             str(e)).exec_()
 
-  def _start_publisher(self, topic_name, topic_type):
+  def start_publisher(self, topic_name, republish=False):
+    '''
+    Starts a publisher to given topic.
+    '''
+    if not self.master_info is None:
+      topic = self.master_info.getTopic("%s"%topic_name)
+      if not topic is None:
+        self._start_publisher(topic.name, topic.type, republish)
+      else:
+        rospy.logwarn("Error while start publisher, topic not found: %s"%topic_name)
+
+  def _start_publisher(self, topic_name, topic_type, republish=False):
     try:
       topic_name = roslib.names.ns_join(roslib.names.SEP, topic_name)
       mclass = roslib.message.get_message_class(topic_type)
@@ -2240,8 +2320,13 @@ class MasterViewProxy(QtGui.QWidget):
         return
       slots = mclass.__slots__
       types = mclass._slot_types
-      args = ServiceDialog._params_from_slots(slots, types)
-      p = { '! Publish rate' : ('string', ['once', 'latch', '1']), topic_type : ('dict', args) }
+      default_topic_values = {}
+      rate_values = ['once', 'latch', '1']
+      if republish and topic_name in self.__republish_params:
+        default_topic_values = self.__republish_params[topic_name][topic_type]
+        rate_values = self.__republish_params[topic_name]['! Publish rate']
+      args = ServiceDialog._params_from_slots(slots, types, default_topic_values)
+      p = { '! Publish rate' : ('string', rate_values), topic_type : ('dict', args) }
       dia = ParameterDialog(p)
       dia.setWindowTitle(''.join(['Publish to ', topic_name]))
       dia.showLoadSaveButtons()
@@ -2250,6 +2335,8 @@ class MasterViewProxy(QtGui.QWidget):
 
       if dia.exec_():
         params = dia.getKeywords()
+        # store params for republish
+        self.__republish_params[topic_name] = params
         rate = params['! Publish rate']
         opt_str = ''
         opt_name_suf = '__latch_'
@@ -2260,10 +2347,14 @@ class MasterViewProxy(QtGui.QWidget):
           opt_name_suf = '__once_'
         else:
           try:
-            i = int(rate)
+            i = 0
+            try:
+              i = int(rate)
+            except:
+              i = float(rate)
             if i > 0:
               opt_str = ''.join(['-r ', rate])
-              opt_name_suf = ''.join(['__', rate, 'Hz_'])
+              opt_name_suf = '__%sHz_'%(str(rate).replace('.', '_'))
           except:
             pass
         # remove empty lists
@@ -2298,12 +2389,17 @@ class MasterViewProxy(QtGui.QWidget):
         result[key] = value
     return result
 
-  def on_topic_pub_stop_clicked(self):
-    selectedTopics = self.topicsFromIndexes(self.masterTab.topicsView.selectionModel().selectedIndexes())
+  def on_topic_pub_stop_clicked(self, topic_name=''):
+    topic_names = []
+    if topic_name:
+      topic_names.append(topic_name)
+    else:
+      selectedTopics = self.topicsFromIndexes(self.masterTab.topicsView.selectionModel().selectedIndexes())
+      topic_names = ['%s'%topic.name for topic in selectedTopics]
     if not self.master_info is None:
       nodes2stop = []
-      for topic in selectedTopics:
-        topic_prefix = ''.join(['/rostopic_pub', topic.name, '_'])
+      for topic in topic_names:
+        topic_prefix = '/rostopic_pub%s_'%topic
         node_names = self.master_info.node_names
         for n in node_names:
           if n.startswith(topic_prefix):

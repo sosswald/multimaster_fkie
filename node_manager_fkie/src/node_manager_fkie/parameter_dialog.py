@@ -847,7 +847,7 @@ class ParameterDialog(QtGui.QDialog):
     # add the sidebar results
     if sidebar_name in result_value:
       # skip the default value, if elements are selected in the side_bar
-      if len(sidebar_list) == 0 or self.sidebar_default_val != result_value[sidebar_name]:
+      if len(sidebar_list) == 0 or self.sidebar_default_val != result_value[sidebar_name][0]:
         sidebar_list.append(result_value[sidebar_name])
       result_value[sidebar_name] = ([v for v, changed in set(sidebar_list)], True)
     result = self._remove_unchanged_parameter(result_value, only_changed)
@@ -1223,16 +1223,19 @@ class ServiceDialog(ParameterDialog):
       self.service_resp_signal.emit(unicode(req), unicode(e))
 
   @classmethod
-  def _params_from_slots(cls, slots, types):
+  def _params_from_slots(cls, slots, types, values={}):
     result = dict()
     for slot, msg_type in zip(slots, types):
       base_type, is_array, array_length = roslib.msgs.parse_type(msg_type)
       if base_type in roslib.msgs.PRIMITIVE_TYPES or base_type in ['time', 'duration']:
-        result[slot] = (msg_type, 'now' if base_type in ['time', 'duration'] else '')
+        default_value = 'now' if base_type in ['time', 'duration'] else ''
+        if slot in values and values[slot]:
+          default_value = values[slot]
+        result[slot] = (msg_type, default_value)
       else:
         try:
           list_msg_class = roslib.message.get_message_class(base_type)
-          subresult = cls._params_from_slots(list_msg_class.__slots__, list_msg_class._slot_types)
+          subresult = cls._params_from_slots(list_msg_class.__slots__, list_msg_class._slot_types, values[slot] if slot in values and values[slot] else {})
           result[slot] = (msg_type, [subresult] if is_array else subresult)
         except ValueError, e:
           import traceback
