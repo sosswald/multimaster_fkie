@@ -83,6 +83,7 @@ class Settings(object):
     Loads the settings from file or sets default values if no one exists.
     '''
     self._terminal_emulator = None
+    self._terminal_command_arg = 'e'
     self._masteruri = masteruri_from_ros()
     self.CFG_PATH = os.path.join(get_ros_home(), 'node_manager')
     # loads the current configuration path. If the path was changed, a redirection
@@ -166,8 +167,8 @@ class Settings(object):
     return self._launch_history_length
 
   @launch_history_length.setter
-  def launch_history_length(self, len):
-    self._launch_history_length = len
+  def launch_history_length(self, length):
+    self._launch_history_length = length
     settings = self.qsettings(self.CFG_FILE)
     settings.setValue('launch_history_length', self._launch_history_length)
 
@@ -176,8 +177,8 @@ class Settings(object):
     return self._param_history_length
 
   @param_history_length.setter
-  def param_history_length(self, len):
-    self._param_history_length = len
+  def param_history_length(self, length):
+    self._param_history_length = length
     settings = self.qsettings(self.CFG_FILE)
     settings.setValue('param_history_length', self._param_history_length)
 
@@ -283,15 +284,17 @@ class Settings(object):
       self._terminal_emulator = ""
       for t in ['/usr/bin/x-terminal-emulator', '/usr/bin/xterm']:
         if os.path.isfile(t) and os.access(t, os.X_OK):
+          #workaround to support the command parameter in different terminal
+          if os.path.basename(os.path.realpath(t)) in ['terminator', 'gnome-terminal', 'xfce4-terminal']:
+            self._terminal_command_arg = 'x'
           self._terminal_emulator = t
           break
     if self._terminal_emulator == "": return ""
-    return "%s -T %s -e %s"%(self._terminal_emulator, title, ' '.join(cmd))
+    return '%s -T "%s" -%s %s'%(self._terminal_emulator, title, self._terminal_command_arg, ' '.join(cmd))
 
-  def qsettings(self, file):
+  def qsettings(self, settings_file):
     from python_qt_binding import QtCore
-    path = file
-    if not file.startswith(os.path.sep):
-       path = os.path.join(self.cfg_path, file)
-    return QtCore.QSettings(path,
-                            QtCore.QSettings.IniFormat)
+    path = settings_file
+    if not settings_file.startswith(os.path.sep):
+      path = os.path.join(self.cfg_path, settings_file)
+    return QtCore.QSettings(path, QtCore.QSettings.IniFormat)
