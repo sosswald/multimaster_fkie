@@ -2,6 +2,30 @@
 Changelog for package master_sync_fkie
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.4.1 (2015-04-28)
+------------------
+* Deprecate is_ignored_topic. Move new parameters to the end of the parameter list
+* Make configuration more granular
+  allows filtering of specific subscribers or publishers
+* multimaster_fkie: fixed double log output
+* multimaster_fkie: fixed error in launch files included in this package
+* Contributors: Alexander Tiderko, Julian Cerruti
+
+0.4.0 (2015-02-20)
+------------------
+* multimaster_fkie: added log_level parameter to all nodes
+* master_sync: fix the long wait time on first sync
+* master_sync_fkie: fix annonce publisher about the AnyMsg subscribers
+* Contributors: Alexander Tiderko
+
+0.3.18 (2015-02-18)
+-------------------
+* master_sync: subscribers with None type are now subscribed as AnyType message
+* Contributors: Alexander Tiderko
+
+0.3.17 (2015-01-22)
+-------------------
+
 0.3.16 (2014-12-08)
 -------------------
 

@@ -43,11 +43,11 @@ import roslib.msgs
 import rospy
 import node_manager_fkie as nm
 
-from parameter_handler import ParameterHandler
-from detailed_msg_box import WarningMessageBox
+from node_manager_fkie.parameter_handler import ParameterHandler
+from node_manager_fkie.detailed_msg_box import WarningMessageBox
 
-def str2bool(v):
-  return v.lower() in ("yes", "true", "t", "1")
+def str2bool(val):
+  return val.lower() in ("yes", "true", "t", "1")
 
 class MyComboBox(QtGui.QComboBox):
 
@@ -70,7 +70,7 @@ class MyComboBox(QtGui.QComboBox):
               self.clearEditText()
       except:
         import traceback
-        print traceback.format_exc()
+        print traceback.format_exc(1)
     QtGui.QComboBox.keyPressEvent(self, event)
 
 class ParameterDescription(object):
@@ -165,13 +165,12 @@ class ParameterDescription(object):
       elif value:
         nm.history().addParamCache(self.fullName(), value)
         if self.isArrayType():
-          value = value.lstrip('[').rstrip(']')
-          if 'int' in self.baseType():
-            self._value = map(int, value.split(','))
+          if 'int' in self.baseType() or 'byte' in self.baseType():
+            self._value = map(int, value.lstrip('[').rstrip(']').split(','))
           elif 'float' in self.baseType():
-            self._value = map(float, value.split(','))
+            self._value = map(float, value.lstrip('[').rstrip(']').split(','))
           elif 'bool' in self.baseType():
-            self._value = map(str2bool, value.split(','))
+            self._value = map(str2bool, value.lstrip('[').rstrip(']').split(','))
           elif self.isBinaryType():
             self._value = value
           else:
@@ -189,7 +188,7 @@ class ParameterDescription(object):
           if not self.arrayLength() is None and self.arrayLength() != len(self._value):
             raise Exception(''.join(["Field [", self.fullName(), "] has incorrect number of elements: ", str(len(self._value)), " != ", str(self.arrayLength())]))
         else:
-          if 'int' in self.baseType():
+          if 'int' in self.baseType() or 'byte' in self.baseType():
             self._value = int(value)
           elif 'float' in self.baseType():
             self._value = float(value)
@@ -221,7 +220,7 @@ class ParameterDescription(object):
           arr = []
           self._value = arr
         else:
-          if 'int' in self.baseType():
+          if 'int' in self.baseType() or 'byte' in self.baseType():
             self._value = 0
           elif 'float' in self.baseType():
             self._value = 0.0
@@ -359,7 +358,7 @@ class MainBox(QtGui.QWidget):
   def createFieldFromValue(self, value):
     self.setUpdatesEnabled(False)
     try:
-      if isinstance(value, dict):
+      if isinstance(value, (dict, list)):
         self._createFieldFromDict(value)
     finally:
       self.setUpdatesEnabled(True)
@@ -419,7 +418,7 @@ class MainBox(QtGui.QWidget):
     :raise Exception: on errors
     '''
     if isinstance(values, dict):
-      for param, value in values.items():
+      for param, (_type, value) in values.items():
         field = self.getField(param)
         if not field is None:
           if isinstance(field, (GroupBox, ArrayBox)):
@@ -585,7 +584,7 @@ class ArrayBox(MainBox):
         del item
       except:
         import traceback
-        print traceback.format_exc()
+        print traceback.format_exc(1)
       self.count_label.setText(str(self._dynamic_items_count))
 
   def createFieldFromValue(self, value):
@@ -594,6 +593,7 @@ class ArrayBox(MainBox):
       if isinstance(value, list):
         self.addDynamicBox()
         self._dynamic_value = value
+        self.set_values(value)
     finally:
       self.setUpdatesEnabled(True)
 
@@ -660,7 +660,7 @@ class ParameterDialog(QtGui.QDialog):
     @type params: C{dict(str:(str, {value, [..], dict()}))}
     '''
     QtGui.QDialog.__init__(self, parent=parent)
-    self.setObjectName(' - '.join(['ParameterDialog', str(params)]))
+    self.setObjectName('ParameterDialog - %s'%str(params))
 
     self.__current_path = nm.settings().current_dialog_path
     self.horizontalLayout = QtGui.QHBoxLayout(self)
@@ -876,6 +876,14 @@ class ParameterDialog(QtGui.QDialog):
         r = self._remove_unchanged_parameter(value, only_changed)
         if r:
           result[param] = r
+      elif isinstance(value, list):
+        new_val = []
+        for val in value:
+          r = self._remove_unchanged_parameter(val, only_changed)
+          if r:
+            new_val.append(r)
+        if new_val:
+          result[param] = new_val
       elif isinstance(value, tuple):
         if value[1] or not only_changed:
           result[param] = value[0]
@@ -898,7 +906,7 @@ class ParameterDialog(QtGui.QDialog):
           f.write(text)
     except Exception as e:
       import traceback
-      print traceback.format_exc()
+      print traceback.format_exc(1)
       WarningMessageBox(QtGui.QMessageBox.Warning, "Save parameter Error", 
                        'Error while save parameter',
                         str(e)).exec_()
@@ -918,7 +926,7 @@ class ParameterDialog(QtGui.QDialog):
           self.content.set_values(yaml.load(f.read()))
     except Exception as e:
       import traceback
-      print traceback.format_exc()
+      print traceback.format_exc(1)
       WarningMessageBox(QtGui.QMessageBox.Warning, "Load parameter Error", 
                        'Error while load parameter',
                         str(e)).exec_()
@@ -932,7 +940,6 @@ class ParameterDialog(QtGui.QDialog):
     self.setResult(QtGui.QDialog.Accepted)
     self.accepted.emit()
     if self.isModal():
-      print "modal"
       self.hide()
 
   def reject(self):
@@ -1011,7 +1018,7 @@ class MasterParameterDialog(ParameterDialog):
           self.close()
       except Exception, e:
         import traceback
-        print traceback.format_exc()
+        print traceback.format_exc(1)
         QtGui.QMessageBox.warning(self, self.tr("Warning"), str(e), QtGui.QMessageBox.Ok)
     elif self.masteruri is None:
       QtGui.QMessageBox.warning(self, self.tr("Error"), 'Invalid ROS master URI', QtGui.QMessageBox.Ok)
@@ -1054,7 +1061,7 @@ class MasterParameterDialog(ParameterDialog):
           QtGui.QMessageBox.warning(self, self.tr("Warning"), 'Empty name is not valid!', QtGui.QMessageBox.Ok)
       except ValueError, e:
         import traceback
-        print traceback.format_exc()
+        print traceback.format_exc(1)
         QtGui.QMessageBox.warning(self, self.tr("Warning"), unicode(e), QtGui.QMessageBox.Ok)
 
   def _on_param_list(self, masteruri, code, msg, params):
@@ -1129,7 +1136,7 @@ class MasterParameterDialog(ParameterDialog):
         self.setInfoActive(False)
       except Exception, e:
         import traceback
-        print traceback.format_exc()
+        print traceback.format_exc(1)
         QtGui.QMessageBox.warning(self, self.tr("Warning"), unicode(e), QtGui.QMessageBox.Ok)
     else:
       self.setText(msg)
@@ -1155,7 +1162,7 @@ class MasterParameterDialog(ParameterDialog):
       errmsg = msg if msg else 'Unknown error on set parameter'
     if errmsg:
       import traceback
-      print traceback.format_exc()
+      print traceback.format_exc(1)
       QtGui.QMessageBox.warning(self, self.tr("Warning"), errmsg, QtGui.QMessageBox.Ok)
       self.is_delivered = False
       self.is_send = False
@@ -1222,7 +1229,7 @@ class ServiceDialog(ParameterDialog):
       self.service_resp_signal.emit(str(req), str(resp))
     except Exception, e:
       import traceback
-      print traceback.format_exc()
+      print traceback.format_exc(1)
       rospy.logwarn("Error while call service '%s': %s", str(self.service.name), str(e))
       self.service_resp_signal.emit(unicode(req), unicode(e))
 
@@ -1239,11 +1246,18 @@ class ServiceDialog(ParameterDialog):
       else:
         try:
           list_msg_class = roslib.message.get_message_class(base_type)
-          subresult = cls._params_from_slots(list_msg_class.__slots__, list_msg_class._slot_types, values[slot] if slot in values and values[slot] else {})
-          result[slot] = (msg_type, [subresult] if is_array else subresult)
+          if is_array and slot in values:
+            subresult = []
+            for slot_value in values[slot]:
+              subvalue = cls._params_from_slots(list_msg_class.__slots__, list_msg_class._slot_types, slot_value if slot in values and slot_value else {})
+              subresult.append(subvalue)
+            result[slot] = (msg_type, subresult)
+          else:
+            subresult = cls._params_from_slots(list_msg_class.__slots__, list_msg_class._slot_types, values[slot] if slot in values and values[slot] else {})
+            result[slot] = (msg_type, [subresult] if is_array else subresult)
         except ValueError, e:
           import traceback
-          print traceback.format_exc()
+          print traceback.format_exc(1)
           rospy.logwarn("Error while parse message type '%s': %s", str(msg_type), str(e))
     return result
 

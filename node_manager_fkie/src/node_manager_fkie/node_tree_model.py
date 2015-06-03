@@ -123,7 +123,7 @@ class GroupItem(QtGui.QStandardItem):
             self._re_cap_nodes[(config, ns, groupname)] = re.compile('\b', re.I)
         except:
           import traceback
-          print traceback.format_exc()
+          print traceback.format_exc(1)
 
 
   def addCapabilities(self, config, capabilities, masteruri):
@@ -224,7 +224,7 @@ class GroupItem(QtGui.QStandardItem):
     except:
       pass
 #      import traceback
-#      print traceback.format_exc()
+#      print traceback.format_exc(1)
     return result
 
   def getNodeItemsByName(self, node_name, recursive=True):
@@ -524,7 +524,7 @@ class GroupItem(QtGui.QStandardItem):
             tooltip += examples.html_body(unicode(self.descr))
         except:
           import traceback
-          rospy.logwarn("Error while generate description for a tooltip: %s", traceback.format_exc())
+          rospy.logwarn("Error while generate description for a tooltip: %s", traceback.format_exc(1))
           tooltip += '<br>'
       # get nodes
       nodes = []
@@ -709,7 +709,7 @@ class HostItem(GroupItem):
             tooltip += examples.html_body(self.descr, input_encoding='utf8')
         except:
           import traceback
-          rospy.logwarn("Error while generate description for a tooltip: %s", traceback.format_exc())
+          rospy.logwarn("Error while generate description for a tooltip: %s", traceback.format_exc(1))
           tooltip += '<br>'
     tooltip += '<h3>%s</h3>'%self._hostname
     tooltip += '<font size="+1"><i>%s</i></font><br>'%self.id[0]
@@ -732,7 +732,7 @@ class HostItem(GroupItem):
         tooltip += examples.html_body('- %s'%('\n- '.join(capabilities)), input_encoding='utf8')
       except:
         import traceback
-        rospy.logwarn("Error while generate description for a tooltip: %s", traceback.format_exc())
+        rospy.logwarn("Error while generate description for a tooltip: %s", traceback.format_exc(1))
     return '<div>%s</div>'%tooltip if tooltip else ''
 
   def type(self):
@@ -809,6 +809,7 @@ class NodeItem(QtGui.QStandardItem):
     self._has_running = False
     self.setIcon(QtGui.QIcon(':/icons/state_off.png'))
     self._state = NodeItem.STATE_OFF
+    self.diagnostic_array = []
 
   @property
   def state(self):
@@ -928,6 +929,14 @@ class NodeItem(QtGui.QStandardItem):
       if not self.parent_item is None and not isinstance(self.parent_item, HostItem):
         self.parent_item.updateIcon()
 
+  def append_diagnostic_status(self, diagnostic_status):
+    self.diagnostic_array.append(diagnostic_status)
+    self.updateDispayedName()
+    if not self.parent_item is None and not isinstance(self.parent_item, HostItem):
+      self.parent_item.updateIcon()
+    if len(self.diagnostic_array) > 15:
+      del self.diagnostic_array[0]
+
   def data(self, role):
     if role == self.NAME_ROLE:
       return self.name
@@ -949,9 +958,13 @@ class NodeItem(QtGui.QStandardItem):
 #      local = (nm.nameres().getHostname(self.node_info.uri) == nm.nameres().getHostname(self.node_info.masteruri))
     if not self.node_info.pid is None:
       self._state = NodeItem.STATE_RUN
-      self.setIcon(QtGui.QIcon(':/icons/state_run.png'))
+      if self.diagnostic_array and self.diagnostic_array[-1].level > 0:
+        self.setIcon(QtGui.QIcon(':/icons/state_notification.png'))
+        self.setToolTip(self.diagnostic_array[-1].message)
+      else:
+        self.setIcon(QtGui.QIcon(':/icons/state_run.png'))
 #      self.setIcon(ICONS['run'])
-      self.setToolTip('')
+        self.setToolTip('')
     elif not self.node_info.uri is None and not self.node_info.isLocal:
       self._state = NodeItem.STATE_RUN
       self.setIcon(QtGui.QIcon(':/icons/state_unknown.png'))

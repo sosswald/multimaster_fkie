@@ -2,6 +2,69 @@
 Changelog for package node_manager_fkie
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.4.1 (2015-04-28)
+------------------
+* node_manager_fkie: fixed error while parsing list of lists in parameter dialog
+* node_manager_fkie: added scrollarea for dynamic_reconfigure widget
+* fixed the usage of new parameter in node_manager
+* node_manager_fkie: fixed binary selection while 'add node'
+* multimaster_fkie: fixed double log output
+* node_manager_fkie: fix to enable the master list if a master_discavery was started
+* node_manager_fkie: fixed recursive search
+* multimaster_fkie: added network problem detection on remote hosts
+* node_manager_fkie: older paramiko versions does not support get_pty parameter in exce_command
+* node_manager_fkie: fixed stdout error while transfer files to remote host
+* node_manager_fkie: ignore errors caused on after the echo dialog was closed
+* node_manager_fkie: changed the color of illegal ros node names
+* Contributors: Alexander Tiderko
+
+0.4.0 (2015-02-20)
+------------------
+* multimaster_fkie: discovery changed
+  * reduced the amount of heartbeat messages for discovery
+  * added fallback for environments with multicast problems
+* node_manager_fkie: added log_level parameter to all nodes
+* node_manager_fkie: fixed syntax highlightning
+* node_manager_fkie: fix ssh handler
+* node_manager_fkie: parameter changed in dialog "start master discovery"
+* node_manager_fkie: fixes in parameter dialog
+  * fixed filter in parameter dialog
+  * fixed parser of the list values
+  * update only changed values in ROS parameter server
+* node_manager_fkie: default value for heartbeat changed to 0.5
+* node_manager_fkie: improved the discovery dialog to detect masters using new methods
+* node_manager_fkie: fixed the button view in the sync dialog
+* node_manager_fkie: added a xml and yaml validation on save of a configuration files
+* Contributors: Alexander Tiderko
+
+0.3.18 (2015-02-18)
+-------------------
+* node_manager_fkie: fixed alt+space for context menu in xml editor
+* node_maanger_fkie: removed sync+AnyMsg option, it is now sync with all messages
+* node_manager_fkie: fix an error printed on close of echo dialog
+* node_manager_fkie: fixed some ssh issues
+* node_manager_fkie: enabled ssh compression
+* node_manager_fkie: store user per host
+* node_manager_fkie: added rviz to rqt menu
+* node_manager_fkie: show now unknown topic types through the SSH connection
+* node_manager_fkie: close running nodes on exit
+* node_manager_fkie: fixed bug while creation of a new file in xml editor
+* node_manager_fkie: added binary selection dialog to xml editor, if you add a node section using 'add tag' button
+* node_manager_fkie: trap the errors printed to stderr in popen
+* node_manager_fkie: fixed highlightning in editor
+* Contributors: Alexander Tiderko
+
+0.3.17 (2015-01-22)
+-------------------
+* node_manager_fkie: switch to local monitoring after connection problems to local master_discovery
+* node_manager_fkie: added an update procedure to refresh discovered masters
+  In same cases the messages, which are send on the shutdown of the
+  master_discovery are not received by node_manager. To update the
+  discovered list in node_manager the complete list of discoevered hosts
+  will be requested, if the localhost master is added as new master.
+* node_manager_fkie: fixed error while publishing to 'std_msgs/Empty'
+* Contributors: Alexander Tiderko
+
 0.3.16 (2014-12-08)
 -------------------
 * node_manager_fkie: fixed a problem with screen view

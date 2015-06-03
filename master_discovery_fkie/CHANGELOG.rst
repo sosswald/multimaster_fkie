@@ -2,6 +2,41 @@
 Changelog for package master_discovery_fkie
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.4.1 (2015-04-28)
+------------------
+* Deprecate is_ignored_topic. Move new parameters to the end of the parameter list
+* Make configuration more granular
+  allows filtering of specific subscribers or publishers
+* multimaster_fkie: fixed double log output
+* multimaster_fkie: added network problem detection on remote hosts
+* multimaster_fkie: fixed error in launch files included in this package
+* Contributors: Alexander Tiderko, Julian Cerruti
+
+0.4.0 (2015-02-20)
+------------------
+* master_discovery_fkie: discovery changed
+  * reduced the amount of heartbeat messages for discovery
+  * added fallback for environments with multicast problems
+* master_discovery_fkie: added log_level parameter to all nodes
+* master_discovery_fkie: changed discovery after the host was set to offline
+* master_discovery_fkie: fixed a problem if more then one master discovery is running on the same host
+* master_discovery_fkie: removed some python mistakes
+* master_discovery_fkie: removed some debug output
+* master_discovery_fkie: fixed change to offline state after a refresh service was called and host is not reachable
+* master_discovery_fkie: fix set to offline state
+* master_discovery_fkie: fixed link quality detection.
+  The requests for each master are now stored, to detect the right count
+  of messages that we have to receive.
+* Contributors: Alexander, Alexander Tiderko, Robot User
+
+0.3.18 (2015-02-18)
+-------------------
+
+0.3.17 (2015-01-22)
+-------------------
+* master_discovery_fkie: fixed discovery support for ipv6
+* Contributors: Alexander Tiderko
+
 0.3.16 (2014-12-08)
 -------------------
 

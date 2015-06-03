@@ -67,6 +67,10 @@ def _succeed(args):
 class RPCThreading(ThreadingMixIn, SimpleXMLRPCServer):
   pass
 
+class RPCThreadingV6(ThreadingMixIn, SimpleXMLRPCServer):
+  address_family = socket.AF_INET6
+  pass
+
 class MasterMonitor(object):
   '''
   This class provides methods to get the state from the ROS master using his 
@@ -95,7 +99,7 @@ class MasterMonitor(object):
 
   INTERVAL_UPDATE_LAUNCH_URIS = 15.0
 
-  def __init__(self, rpcport=11611, do_retry=True):
+  def __init__(self, rpcport=11611, do_retry=True, ipv6=False):
     '''
     Initialize method. Creates an XML-RPC server on given port and starts this
     in its own thread.
@@ -107,6 +111,10 @@ class MasterMonitor(object):
     :param do_retry: retry to create XML-RPC server
     
     :type do_retry: bool
+    
+    :param ipv6: Use ipv6
+    
+    :type ipv6: bool
     '''
     self._state_access_lock = threading.RLock()
     self._create_access_lock = threading.RLock()
@@ -131,24 +139,30 @@ class MasterMonitor(object):
     self._printed_errors = dict()
     self._last_clearup_ts = time.time()
 
+    self._master_errors = list()
+
     # Create an XML-RPC server
     self.ready = False
     while not self.ready and (not rospy.is_shutdown()):
       try:
-        self.rpcServer = RPCThreading(('', rpcport), logRequests=False, allow_none=True)
+        RPCClass = RPCThreading
+        if ipv6:
+          RPCClass = RPCThreadingV6
+        self.rpcServer = RPCClass(('', rpcport), logRequests=False, allow_none=True)
         rospy.loginfo("Start RPC-XML Server at %s", self.rpcServer.server_address)
         self.rpcServer.register_introspection_functions()
         self.rpcServer.register_function(self.getListedMasterInfo, 'masterInfo')
         self.rpcServer.register_function(self.getListedMasterInfoFiltered, 'masterInfoFiltered')
         self.rpcServer.register_function(self.getMasterContacts, 'masterContacts')
+        self.rpcServer.register_function(self.getMasterErrors, 'masterErrors')
         self._rpcThread = threading.Thread(target = self.rpcServer.serve_forever)
         self._rpcThread.setDaemon(True)
         self._rpcThread.start()
         self.ready = True
-      except socket.error:
+      except socket.error as e:
         if not do_retry:
-          raise Exception(''.join(["Error while start RPC-XML server on port ", str(rpcport), ". Is a Node Manager already running?"]))
-        rospy.logwarn(''.join(["Error while start RPC-XML server on port ", str(rpcport), ". Try again..."]))
+          raise Exception("Error while start RPC-XML server on port %d: %s\nIs a Node Manager already running?"%(rpcport, e))
+        rospy.logwarn("Error while start RPC-XML server on port %d: %s\nTry again..."%(rpcport, e))
         time.sleep(1)
       except:
         import traceback
@@ -713,7 +727,6 @@ class MasterMonitor(object):
       #'print "updateSyncInfo _create_access_lock RET", threading.current_thread()
 
 
-    
   def getMasteruri(self):
     '''
     Requests the ROS master URI from the ROS master through the RPC interface and 
@@ -769,11 +782,20 @@ class MasterMonitor(object):
       #'print "getMasterContacts _state_access_lock RET", threading.current_thread()
     #'print "MASTERCONTACTS <<<<<<<<<<<<<<<<<<<<"
     return (str(t), str(self.getMasteruri()), str(self.getMastername()), self.ros_node_name, roslib.network.create_local_xmlrpc_uri(self.rpcport))
-  
+
+  def getMasterErrors(self):
+    '''
+    The RPC method called by XML-RPC server to request the occured network errors.
+
+    :return: (``ROS master URI``, ``list with errors``)
+    :rtype: (str, str, [str])
+    '''
+    return (str(self.getMasteruri()), self._master_errors)
+
   def checkState(self, clear_cache=False):
     '''
     Gets the state from the ROS master and compares it to the stored state.
-    
+
     :param clear_cache: The URI of nodes and services will be cached to reduce the load.
                         If remote hosted nodes or services was restarted, the cache must 
                         be cleared! The local nodes will be updated periodically after
@@ -822,3 +844,6 @@ class MasterMonitor(object):
         del self.__master_state
       self.__master_state = None
       #'print "reset _state_access_lock RET", threading.current_thread()
+
+  def update_master_errors(self, error_list):
+    self._master_errors = list(error_list)
